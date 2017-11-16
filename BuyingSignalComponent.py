@@ -6,7 +6,7 @@ import urllib2
 import boto3
 
 from datetime import datetime, timedelta
-from bittrexQuery import query
+from bittrexQuery import Bittrex
 from holdingStatusTable import HoldingStatusTable
 from tradingSignalHistoryTable import TradingSignalHistoryTable
 
@@ -20,6 +20,7 @@ TRADINGSNS = os.environ['tradingSNS']
 
 holdingStatusTable = HoldingStatusTable(HOLDINTSTATUSTABLENAME)
 tradingSignalHistoryTable = TradingSignalHistoryTable(TRADINGSIGNALHISTORYTABLENAME)
+bittrex = Bittrex()
 
 
 def validateBittrex(rawMarketData):
@@ -201,7 +202,7 @@ def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLat
 def lambda_handler(event, context):
 	try:
 		# Validate Bittrex connection
-		rawMarketSummaryData = query('getmarketsummaries')
+		rawMarketSummaryData = bittrex.query('getmarketsummaries')
 		validateBittrex(rawMarketSummaryData)
 
 		# RetrieveMarketHistoricalData
