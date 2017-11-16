@@ -6,7 +6,7 @@ import urllib2
 import boto3
 
 from datetime import datetime, timedelta
-from bittrexQuery import query
+from bittrexQuery import Bittrex
 from holdingStatusTable import HoldingStatusTable
 from tradingSignalHistoryTable import TradingSignalHistoryTable
 
@@ -18,7 +18,7 @@ INDIVIDUALSUMMARYPOSTFIX = os.environ['individualSummaryPostfix']
 
 holdingStatusTable = HoldingStatusTable(HOLDINTSTATUSTABLENAME)
 tradingSignalHistoryTable = TradingSignalHistoryTable(TRADINGSIGNALHISTORYTABLENAME)
-
+bittrex = Bittrex()
 
 def validateBittrex(rawMarketData):
 	checkResult = rawMarketData['success']
@@ -36,7 +36,7 @@ def retrieveMarketHistoricalData():
 	for pair in holdingPairs:
 		print('Start to retrieve data for ' + str(pair))
 		values = {'market': pair}
-		contents = query('getticker', values)
+		contents = bittrex.query('getticker', values)
 		print('Tickker info for ' + pair + ' is: ')
 		print(json.dumps(contents))
 		marketHistoricalData[pair] = contents['result']
@@ -149,7 +149,7 @@ def sellSig(holdingStatus,currPrice,currTS,thresholds={'stopLoss':-0.07,'stopPea
 def lambda_handler(event, context):
 	try:
 		# Validate Bittrex connection
-		rawMarketSummaryData = query('getmarketsummaries')
+		rawMarketSummaryData = bittrex.query('getmarketsummaries')
 		validateBittrex(rawMarketSummaryData)
 
 		# RetrieveMarketHistoricalData
