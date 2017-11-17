@@ -4,14 +4,17 @@ import os
 import json
 import urllib2
 import boto3
+import time
 
 from datetime import datetime, timedelta
 from bittrexQuery import Bittrex
 from holdingStatusTable import HoldingStatusTable
+from transactionHistoryTable import TransactionHistoryTable
 
 KEY=os.environ['key']
 SECRET=os.environ['secret']
 HOLDINTSTATUSTABLENAME = os.environ['holdingStatusTableName']
+TRANSACTIONHISTORYTABLENAME = os.environ['transactionHistoryTableName']
 TRADINGSNS = os.environ['tradingSNS']
 MAX_TRADING_PAIRS = int(os.environ['max_trading_pairs'])
 BUY_PRICE_FACTOR = float(os.environ['buy_price_factor'])
@@ -21,16 +24,10 @@ MIN_BALANCE_PER_TRADING_PAIR = float(os.environ['min_balance_per_trading_pair'])
 SIGNAL_TICK_PRICE_TOLERANCE = float(os.environ['signal_tick_price_tolerance'])
 
 holdingStatusTable = HoldingStatusTable(HOLDINTSTATUSTABLENAME)
+transactionHistoryTable = TransactionHistoryTable(TRANSACTIONHISTORYTABLENAME)
 bittrex = Bittrex(KEY, SECRET)
 
 tradingMessage = ''
-
-
-# dynamodb = boto3.resource('dynamodb')
-# holdingStatusTable = dynamodb.Table('MarketHoldingStatus')
-# transactionHistory = dynamodb.Table('TransactionHistory')
-
-# tradingMessage = ''
 
 def validateBittrex(rawMarketData):
 	checkResult = rawMarketData['success']
@@ -102,7 +99,7 @@ def sell(candidate):
 			holdingStatusTable.setHoldingStatus(pair, 'False', 0, 0)
 			
 			# Update transaction record
-			# updateTransactionHistory(pair, quantity, realRate, contents['result'], False)
+			transactionHistoryTable.updateSellingTransactionHistory(pair, quantity, realRate, contents['result'])
 
 			tradingRecord = 'Selling transaction finished: ' + pair + ', quantity: ' + str(quantity) + ', rate: ' + str(realRate)
 			snsLog(tradingRecord)            
@@ -116,138 +113,140 @@ def sell(candidate):
 	
 	return
 
-# def buyExecution(buyingCandidates):
-# 	availableTradingPairs = getAvailableTradingPairs()
-# 	print('Available trading pair number is: ' + str(availableTradingPairs))
+def buyExecution(buyingCandidates):
+	availableTradingPairs = getAvailableTradingPairs()
+	print('Available trading pair number is: ' + str(availableTradingPairs))
 	
-# 	for candidate in buyingCandidates:
-# 		if (availableTradingPairs <= 0):
-# 			snsLog('Warning: No more trading pairs allowed!')
-# 			break
-# 		if (buy(candidate) is True):
-# 			availableTradingPairs = availableTradingPairs - 1
+	for candidate in buyingCandidates:
+		if (availableTradingPairs <= 0):
+			snsLog('Warning: No more trading pairs allowed!')
+			break
+		if (buy(candidate) is True):
+			availableTradingPairs = availableTradingPairs - 1
 		
-# 	return
+	return
 
-# def buy(candidate):
-# 	pair = candidate['pair']
-# 	currency = pair.split('-')[1]
-# 	print('Start to buy: ' + currency)
+def buy(candidate):
+	pair = candidate['pair']
+	currency = pair.split('-')[1]
+	print('Start to buy: ' + currency)
 	
-# 	currentHoldingStatus = getHoldingStatus(pair)
-# 	if (currentHoldingStatus is not None):
-# 		snsLog('Warning: Currency has already been purchased: ' + pair)
-# 		return False
+	currentHoldingStatus = holdingStatusTable.getHoldingStatus(pair)
+	if (currentHoldingStatus is not None):
+		snsLog('Warning: Currency has already been purchased: ' + pair)
+		return False
 	
-# 	# Get buy price
-# 	buyPrice = getBuyPrice(candidate)
-# 	if (buyPrice == 0.0):
-# 		snsLog('Warning: Quit buy execution for ' + pair)
-# 		return False
-# 	print('Buy price for ' + pair + ' is ' + str(buyPrice))
+	# Get buy price
+	buyPrice = getBuyPrice(candidate)
+	if (buyPrice == 0.0):
+		snsLog('Warning: Quit buy execution for ' + pair)
+		return False
+	print('Buy price for ' + pair + ' is ' + str(buyPrice))
 	
-# 	# Get available balance
-# 	availableBalance = getAvailableBalance()
-# 	if (availableBalance == 0.0):
-# 		snsLog('Warning: Quit buy execution for ' + pair)
-# 		return False
+	# Get available balance
+	availableBalance = getAvailableBalance(candidate)
+	if (availableBalance == 0.0):
+		snsLog('Warning: Quit buy execution for ' + pair)
+		return False
 		
-# 	# Get trading quantity
-# 	buyQuantity = availableBalance / buyPrice
-# 	print('Buy quantity for ' + pair + ' is ' + str(buyQuantity))
+	# Get trading quantity
+	buyQuantity = availableBalance / buyPrice
+	print('Buy quantity for ' + pair + ' is ' + str(buyQuantity))
 
-# 	# Buy currency
-# 	orderUUID = None
-# 	values = {'market': pair, 'quantity': buyQuantity, 'rate': buyPrice}
-# 	contents = query('buylimit', values)
-# 	print('Buy currency info: ')
-# 	print(json.dumps(contents))
-# 	if (contents['success'] is False):
-# 		snsLog('Warning: Fail to buy ' + currency)
-# 		return False
-# 	else:
-# 		orderUUID = contents['result']['uuid']
+	# Buy currency
+	orderUUID = None
+	values = {'market': pair, 'quantity': buyQuantity, 'rate': buyPrice}
+	contents = bittrex.query('buylimit', values)
+	print('Buy currency info: ')
+	print(json.dumps(contents))
+	if (contents['success'] is False):
+		snsLog('Warning: Fail to buy ' + currency)
+		return False
+	else:
+		orderUUID = contents['result']['uuid']
 
-# 	# Give market some time, up to 10 seconds to do the trading
-# 	orderFulfilled = waitTradingGracePeriod(pair)
+	# Give market some time, up to 10 seconds to do the trading
+	orderFulfilled = waitTradingGracePeriod(pair)
 	
-# 	if (orderFulfilled is True):
-# 		# Get order
-# 		values = {'uuid': orderUUID}
-# 		contents = query('getorder', values)
-# 		print('Order information is: ')
-# 		print(json.dumps(contents))
-# 		realRate = contents['result']['PricePerUnit']
+	if (orderFulfilled is True):
+		# Get order
+		values = {'uuid': orderUUID}
+		contents = bittrex.query('getorder', values)
+		print('Order information is: ')
+		print(json.dumps(contents))
+		realRate = contents['result']['PricePerUnit']
 
-# 		# Update holding status
-# 		setHoldingStatus(pair, 'True', realRate, realRate)
+		# Update holding status
+		holdingStatusTable.setHoldingStatus(pair, 'True', realRate, realRate)
 		
-# 		# Update transaction record
-# 		updateTransactionHistory(pair, buyQuantity, realRate, contents['result'], True)
+		# Update transaction record
+		transactionHistoryTable.updateBuyingTransactionHistory(pair, buyQuantity, realRate, contents['result'])
 		
-# 		tradingRecord = 'Buying transaction finished: ' + pair + ', quantity: ' + str(buyQuantity) + ', rate: ' + str(realRate)
-# 		snsLog(tradingRecord)
-# 		return True
+		tradingRecord = 'Buying transaction finished: ' + pair + ', quantity: ' + str(buyQuantity) + ', rate: ' + str(realRate)
+		snsLog(tradingRecord)
+		return True
 		
-# 	else:
-# 		# If the order has been fulfilled, cancel will make nothing
-# 		# Otherwise cancel this out-of-date order
-# 		cancelOutOfDateOrder(orderUUID)
-# 		snsLog('Warning: order canceled because order is not fulfilled for buying ' + pair)
-# 		return True
+	else:
+		# If the order has been fulfilled, cancel will make nothing
+		# Otherwise cancel this out-of-date order
+		cancelOutOfDateOrder(orderUUID)
+		snsLog('Warning: order canceled because order is not fulfilled for buying ' + pair)
+		return True
 
-# def getBuyPrice(candidate):
-# 	pair = candidate['pair']
-# 	signalBuyPrice = candidate['buyPrice']
+def getBuyPrice(candidate):
+	pair = candidate['pair']
+	signalBuyPrice = candidate['buyPrice']
 	
-# 	# Get tick price
-# 	values = {'market': pair}
-# 	contents = query('getticker', values)
-# 	print('Tickker infor is: ')
-# 	print(json.dumps(contents))
-# 	tickLastPrice = contents['result']['Last']
+	# Get tick price
+	values = {'market': pair}
+	contents = bittrex.query('getticker', values)
+	print('Tickker infor is: ')
+	print(json.dumps(contents))
+	tickLastPrice = contents['result']['Last']
 	
-# 	# difRatio = math.fabs((tickLastPrice - signalBuyPrice) / tickLastPrice)
-# 	difRatio = (tickLastPrice - signalBuyPrice) / tickLastPrice
-# 	if (tickLastPrice < signalBuyPrice) or (difRatio > SIGNAL_TICK_PRICE_TOLERANCE):
-# 		# print('Warning: Will quit execution as difRatio(' + str(difRatio) + ') is greater than ' + str(SIGNAL_TICK_PRICE_TOLERANCE))
-# 		snsLog('Warning: Will quit execution as signal price(' + str(signalBuyPrice) + ') is too different with tick price(' + str(tickLastPrice) +')')
+	# difRatio = math.fabs((tickLastPrice - signalBuyPrice) / tickLastPrice)
+	difRatio = (tickLastPrice - signalBuyPrice) / tickLastPrice
+	if (tickLastPrice < signalBuyPrice) or (difRatio > SIGNAL_TICK_PRICE_TOLERANCE):
+		# print('Warning: Will quit execution as difRatio(' + str(difRatio) + ') is greater than ' + str(SIGNAL_TICK_PRICE_TOLERANCE))
+		snsLog('Warning: Will quit execution as signal price(' + str(signalBuyPrice) + ') is too different with tick price(' + str(tickLastPrice) +')')
 		
-# 		return 0.0
-# 	else:
-# 		return tickLastPrice * BUY_PRICE_FACTOR
+		return 0.0
+	else:
+		return tickLastPrice * BUY_PRICE_FACTOR
 
-# def getAvailableBalance():
-# 	# Get account info for BTC
-# 	values = {'currency': 'BTC'}
-# 	contents = query('getbalance', values)
-# 	print('Account information is: ')
-# 	print(json.dumps(contents))
-# 	BTCBalance = contents['result']['Available']
-# 	print('Total BTC balance is ' + str(BTCBalance))
+def getAvailableBalance(candidate):
+	dynamicBalance = candidate['dynamicBalanceFactor'] * MIN_BALANCE_PER_TRADING_PAIR
 
-# 	# Quantify Buy Quantity
-# 	if (BTCBalance >= MAX_BALANCE_PER_TRADING_PAIR):
-# 		print('Available balance is ' + str(MAX_BALANCE_PER_TRADING_PAIR))
-# 		return MAX_BALANCE_PER_TRADING_PAIR
-# 	elif (BTCBalance >= MIN_BALANCE_PER_TRADING_PAIR):
-# 		print('Available balance is ' + str(BTCBalance))
-# 		return BTCBalance
-# 	else:
-# 		snsLog('Warning: Available blance is a dust training, will quit trading')
-# 		return 0.0
-
-# def getAvailableTradingPairs():
-# 	response = holdingStatusTable.scan(
-# 		FilterExpression=Key('HoldingStatus').eq('True')
-# 	)
-# 	holdingPairs = len(response['Items'])
+	# Get account info for BTC
+	values = {'currency': 'BTC'}
+	contents = bittrex.query('getbalance', values)
+	print('Account information is: ')
+	print(json.dumps(contents))
+	BTCBalance = contents['result']['Available']
+	print('Total BTC balance is ' + str(BTCBalance))
 	
-# 	if (holdingPairs < MAX_TRADING_PAIRS):
-# 		return MAX_TRADING_PAIRS - holdingPairs
-# 	# In very special test case, there could be more than MAX_TRADING_PAIRS pairs in the table
-# 	else:
-# 		return 0
+	# Quantify Buy Quantity
+	if (BTCBalance >= MAX_BALANCE_PER_TRADING_PAIR):
+		finalBalance = min(MAX_BALANCE_PER_TRADING_PAIR, dynamicBalance)
+		print('Available balance is ' + str(finalBalance))
+		return finalBalance
+	elif (BTCBalance >= MIN_BALANCE_PER_TRADING_PAIR):
+		finalBalance = min(BTCBalance, dynamicBalance)
+		print('Available balance is ' + str(finalBalance))
+		return finalBalance
+	else:
+		snsLog('Warning: Available blance is a dust training, will quit trading')
+		return 0.0
+
+def getAvailableTradingPairs():
+	response = holdingStatusTable.getHoldingPairs()
+	holdingPairs = len(response)
+	
+	if (holdingPairs < MAX_TRADING_PAIRS):
+		return MAX_TRADING_PAIRS - holdingPairs
+	# In very special test case, there could be more than MAX_TRADING_PAIRS pairs in the table
+	else:
+		return 0
 
 # Return True if order is fulfilled, return False if not
 def waitTradingGracePeriod(pair):
@@ -264,6 +263,27 @@ def waitTradingGracePeriod(pair):
 		print(json.dumps(contents))
 	return False
 
+def updateTransactionHistory(pair, quantity, rate, details, buy=True):
+	timeStamp = str(datetime.now())
+	tradingType = str()
+	if (buy is True):
+		tradingType = 'Buy'
+	else:
+		tradingType = 'Sell'
+	
+	transactionHistory.put_item(
+		Item = {
+			'MarketName': pair,
+			'TimeStamp': timeStamp,
+			'TradingType': tradingType,
+			'Quantity': str(quantity),
+			'Rate': str(rate),
+			'TradingDetails': json.dumps((details))
+		}
+	)
+	
+	return
+
 def cancelOutOfDateOrder(orderUUID):
 	if (orderUUID is not None):
 		values = {'uuid': orderUUID}
@@ -272,17 +292,17 @@ def cancelOutOfDateOrder(orderUUID):
 		print(json.dumps(contents))
 	return
 
-# def triggerTradingSNS():
-# 	sns = boto3.client(service_name="sns")
-# 	topicArn = TRADINGSNS
-# 	print('Trading is executed!')
-# 	global tradingMessage
-# 	print(tradingMessage)
-# 	sns.publish(
-# 		TopicArn = topicArn,
-# 		Message = 'Trading is executed!\n' + tradingMessage
-# 	)
-# 	return
+def triggerTradingSNS():
+	sns = boto3.client(service_name="sns")
+	topicArn = TRADINGSNS
+	print('Trading is executed!')
+	global tradingMessage
+	print(tradingMessage)
+	sns.publish(
+		TopicArn = topicArn,
+		Message = 'Trading is executed!\n' + tradingMessage
+	)
+	return
 
 def snsLog(message):
 	print(str(message))
@@ -310,6 +330,10 @@ def lambda_handler(event, context):
 		# Start to sell
 		sellExecution(sellingCandidates)
 		
+		# Start to buy
+		buyExecution(buyingCandidates)
+
+		triggerTradingSNS()
 	except Exception, e:
 		print('Error: ' + str(e))
 		raise
@@ -318,34 +342,3 @@ def lambda_handler(event, context):
 		return str(datetime.now())
 	finally:
 		print('Execution complete at {}'.format(str(datetime.now())))
-
-# def lambda_handler(event, context):
-#     try:
-#         rawMarketData = json.loads(urlopen(SITE).read())
-#         if not validateBittrex(rawMarketData):
-#             raise Exception('Validation failed')
-			
-#         global tradingMessage
-#         tradingMessage = ''
-		
-#         buyingCandidates, sellingCandidates = getCandidates(event)
-#         print("BuyingCandidates: ")
-#         print(json.dumps(buyingCandidates))
-#         print("SellingCandidates: ")
-#         print(json.dumps(sellingCandidates))
-		
-#         # Start to sell
-#         sellExecution(sellingCandidates)
-		
-#         # Start to buy
-#         buyExecution(buyingCandidates)
-
-#         triggerTradingSNS()
-#     except:
-#         print('Check failed!')
-#         raise
-#     else:
-#         print('Check passed!')
-#         return str(datetime.now())
-#     finally:
-#         print('Check complete at {}'.format(str(datetime.now())))
