@@ -17,6 +17,7 @@ INDIVIDUALSUMMARYPOSTFIX = os.environ['individualSummaryPostfix']
 HOLDINTSTATUSTABLENAME = os.environ['holdingStatusTableName']
 TRADINGSIGNALHISTORYTABLENAME = os.environ['tradingSignalHistoryTableName']
 TRADINGSNS = os.environ['tradingSNS']
+EXECUTIONSNS = os.environ['executionSNS']
 
 holdingStatusTable = HoldingStatusTable(HOLDINTSTATUSTABLENAME)
 tradingSignalHistoryTable = TradingSignalHistoryTable(TRADINGSIGNALHISTORYTABLENAME)
@@ -76,6 +77,37 @@ def triggerTradingSNS(buyingCandidates):
 		TopicArn = topicArn,
 		Message = 'Trading is triggered!\n' + 'BuyingCandidates: ' + str(buyingCandidates) + '\n'
 	)
+	return
+
+def triggerExecutionSNS(buyingCandidates):
+	sns = boto3.client(service_name="sns")
+	topicArn = EXECUTIONSNS
+	
+	formattedBuyingCandidates = []
+	for candidate in buyingCandidates:
+		buyingCandidate = {}
+		buyingCandidate['pair'] = candidate[1]['pair']
+		buyingCandidate['buyPrice'] = candidate[1]['currPrice']
+		buyingCandidate['dynamicBalanceFactor'] = candidate[1]['dynamicBalanceFactor']
+		formattedBuyingCandidates.append(buyingCandidate)
+
+	formattedSellingCandidates = []
+	
+	print('Execution is triggered!')
+	print(json.dumps(formattedBuyingCandidates))
+	
+	message = {
+		'message': 'Execution is triggered!',
+		'buyingCandidates': formattedBuyingCandidates,
+		'sellingCandidates': formattedSellingCandidates
+	}
+	
+	sns.publish(
+		TopicArn = topicArn,
+		Message = json.dumps({'default': json.dumps(message)}),
+		MessageStructure='json'
+	)
+
 	return
 
 def generateBuyCandidates(marketHistoricalData):
@@ -217,7 +249,7 @@ def lambda_handler(event, context):
 		print('buyingCandidates:', buyingCandidates)
 		if (len(buyingCandidates) != 0):
 			triggerTradingSNS(buyingCandidates)
-			# Todo, integrate with execution
+			triggerExecutionSNS(buyingCandidates)
 
 		# Update buy signal history
 		tradingSignalHistoryTable.updateBuyingSignalHistory(buyingCandidates)

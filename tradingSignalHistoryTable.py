@@ -34,8 +34,6 @@ class TradingSignalHistoryTable(object):
 					'MarketName': candidate[1]['pair'],
 					'TimeStamp': str(datetime.now()),
 					'SignalType': 'Sell',
-					'CurrentPrice': str(candidate[1]['currPrice']),
-					'TwentyFourHourBTCVolume': str(candidate[1]['twentyFourHourBTCVolume']),
 					'CurrentTS': str(candidate[1]['currentTS']),
 					'ComPrice': str(candidate[1]['comPrice'])
 				}

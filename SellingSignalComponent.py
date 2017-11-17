@@ -13,6 +13,7 @@ from tradingSignalHistoryTable import TradingSignalHistoryTable
 HOLDINTSTATUSTABLENAME = os.environ['holdingStatusTableName']
 TRADINGSIGNALHISTORYTABLENAME = os.environ['tradingSignalHistoryTableName']
 TRADINGSNS = os.environ['tradingSNS']
+EXECUTIONSNS = os.environ['executionSNS']
 INDIVIDUALSUMMARYPREFIX = os.environ['individualSummaryPrefix']
 INDIVIDUALSUMMARYPOSTFIX = os.environ['individualSummaryPostfix']
 
@@ -75,6 +76,36 @@ def triggerTradingSNS(sellingingCandidates):
 		TopicArn = topicArn,
 		Message = 'Trading is triggered!\n' + 'SellingCandidates: ' + str(sellingingCandidates) + '\n'
 	)
+	return
+
+def triggerExecutionSNS(sellingCandidates):
+	sns = boto3.client(service_name="sns")
+	topicArn = EXECUTIONSNS
+	
+	formattedBuyingCandidates = []
+	
+	formattedSellingCandidates = []
+	for candidate in sellingCandidates:
+		sellingCandidate = {}
+		sellingCandidate['pair'] = candidate[1]['pair']
+		sellingCandidate['comPrice'] = candidate[1]['comPrice']
+		formattedSellingCandidates.append(sellingCandidate)
+	
+	print('Execution is triggered!')
+	print(json.dumps(formattedSellingCandidates))
+	
+	message = {
+		'message': 'Execution is triggered!',
+		'buyingCandidates': formattedBuyingCandidates,
+		'sellingCandidates': formattedSellingCandidates
+	}
+	
+	sns.publish(
+        TopicArn = topicArn,
+		Message = json.dumps({'default': json.dumps(message)}),
+		MessageStructure='json'
+	)
+
 	return
 
 def generateSellCandidates(marketHistoricalData):
@@ -156,8 +187,6 @@ def lambda_handler(event, context):
 		marketHistoricalData = retrieveMarketHistoricalData()
 
 		# Update peak price for holding pairs
-		# Has bug because data structure inconsistent
-		# holdingStatusTable.updatePeakPrice(marketHistoricalData)
 		updatePeakValue()
 
 		# Generate selling candidates
@@ -165,6 +194,10 @@ def lambda_handler(event, context):
 		print('sellingCandidates:', sellingingCandidates)
 		if (len(sellingingCandidates) != 0):
 			triggerTradingSNS(sellingingCandidates)
+			triggerExecutionSNS(sellingingCandidates)
+
+		# Update sell signal history
+		tradingSignalHistoryTable.updateSellingSignalHistory(sellingingCandidates)
 
 	except Exception, e:
 		print('Error: ' + str(e))
