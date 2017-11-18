@@ -79,7 +79,7 @@ def sell(candidate):
 		print('Sell currency info: ')
 		print(json.dumps(contents))
 		if (contents['success'] is False):
-			snsLog('Warning: Fail to sell ' + currency)
+			snsLog('Warning: Fail to sell ' + currency + ': \n' + str(json.dumps(contents)))
 			return
 		else:
 			orderUUID = contents['result']['uuid']
