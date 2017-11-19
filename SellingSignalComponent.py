@@ -17,6 +17,17 @@ EXECUTIONSNS = os.environ['executionSNS']
 INDIVIDUALSUMMARYPREFIX = os.environ['individualSummaryPrefix']
 INDIVIDUALSUMMARYPOSTFIX = os.environ['individualSummaryPostfix']
 
+# Trading logic parameters
+STOP_LOSS = float(os.environ['stop_loss'])
+STOP_PEAK_LOSS = float(os.environ['stop_peak_loss'])
+STOP_GAIN = int(os.environ['stop_gain'])
+LOW_MOVEMENT_CHECK_TIME_GAP = int(os.environ['low_movement_check_time_gap'])
+LOW_PURCHASE_QUANTITY = float(os.environ['low_purchase_quantity'])
+PEAK_PRICE_TRAILING_INTERVALS = [float(i) for i in os.environ['peak_price_trailing_intervals'].split(',')]
+PEAK_PRICE_TRAILING_THRESHOLD = [float(i) for i in os.environ['peak_price_trailing_threshold'].split(',')]
+GRACE_PERIOD = int(os.environ['grace_period'])
+GRACE_PERIOD_STOP_LOSS = float(os.environ['grace_period_stop_loss'])
+
 holdingStatusTable = HoldingStatusTable(HOLDINTSTATUSTABLENAME)
 tradingSignalHistoryTable = TradingSignalHistoryTable(TRADINGSIGNALHISTORYTABLENAME)
 bittrex = Bittrex()
@@ -119,7 +130,22 @@ def generateSellCandidates(marketHistoricalData):
 	for pair in marketHistoricalData.keys():
 		holdingStatus=holdingStatusTable.getHoldingStatus(pair)
 		currTS=calendar.timegm(datetime.datetime.utcnow().utctimetuple())
-		ans=sellSig(holdingStatus=holdingStatus,currPrice=marketHistoricalData[pair]['Last'],currTS=currTS,thresholds={'stopLoss':-0.025,'stopPeakLoss':-0.1,'stopGain':1000,'lowMovementCheckTimeGap':60,'LowPurchaseQuantity':0.001},peakPriceTrailingIntervals=[0.1,0.3],peakPriceTrailingThreshold=[0,0.1,0.8],gracePeriod=30,gracePeriodStopLoss=-0.025)
+		ans=sellSig(
+			holdingStatus=holdingStatus,
+			currPrice=marketHistoricalData[pair]['Last'],
+			currTS=currTS,
+			thresholds={
+				'stopLoss':STOP_LOSS,
+				'stopPeakLoss':STOP_PEAK_LOSS,
+				'stopGain':STOP_GAIN,
+				'lowMovementCheckTimeGap':LOW_MOVEMENT_CHECK_TIME_GAP,
+				'LowPurchaseQuantity':LOW_PURCHASE_QUANTITY
+			},
+			peakPriceTrailingIntervals=PEAK_PRICE_TRAILING_INTERVALS,
+			peakPriceTrailingThreshold=PEAK_PRICE_TRAILING_THRESHOLD,
+			gracePeriod=GRACE_PERIOD,
+			gracePeriodStopLoss=GRACE_PERIOD_STOP_LOSS
+		)
 		if ans!=None and ans['sig']!=None:
 			hq.heappush(sellCand,(-ans['sig'],{'comPrice':ans['comPrice'],'pair':pair,'currentTS':calendar.timegm(datetime.datetime.utcnow().utctimetuple())}))
 	return sellCand
