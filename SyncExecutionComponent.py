@@ -296,11 +296,12 @@ def triggerTradingSNS():
 	sns = boto3.client(service_name="sns")
 	topicArn = TRADINGSNS
 	print('Trading is executed!')
+	print('In ' + TRADINGSNS.split(':')[-1])
 	global tradingMessage
 	print(tradingMessage)
 	sns.publish(
 		TopicArn = topicArn,
-		Message = 'Trading is executed!\n' + tradingMessage
+		Message = 'Trading is executed ' + TRADINGSNS.split(':')[-1] + '!\n' + tradingMessage
 	)
 	return
 
