@@ -19,6 +19,14 @@ TRADINGSIGNALHISTORYTABLENAME = os.environ['tradingSignalHistoryTableName']
 TRADINGSNS = os.environ['tradingSNS']
 EXECUTIONSNS = os.environ['executionSNS']
 
+# Trading logic parameters
+CHECK_TIME_STAMP_WINDOW = [int(i) for i in os.environ['check_time_stamp_window'].split(',')]
+PRICE_THRESHOLD_WINDOW = [float(i) for i in os.environ['price_threshold_window'].split(',')]
+VOLUME_TEST_WINDOW = int(os.environ['volume_test_window'])
+VOLUME_TEST_QUANTITY = float(os.environ['volume_test_quantity'])
+LAST_WINDOW_PRICE_INCREASE_THRESHOLD = float(os.environ['last_window_price_increase_threshold'])
+LAST_WINDOW_MOMENTUM_THRESHOLD = float(os.environ['last_window_momentum_threshold'])
+
 holdingStatusTable = HoldingStatusTable(HOLDINTSTATUSTABLENAME)
 tradingSignalHistoryTable = TradingSignalHistoryTable(TRADINGSIGNALHISTORYTABLENAME)
 bittrex = Bittrex()
@@ -119,7 +127,19 @@ def generateBuyCandidates(marketHistoricalData):
 		raise ValueError('erroneous marketHistoricalData')
 	buyCand=[]
 	for pair in marketHistoricalData.keys():
-		ans=rollingWindow_2(tradingPair=pair,data=marketHistoricalData[pair],histTimeInterval=1,warningTimeGap=10,maxLatency=5,checkTS=[-15,-10,-5],Pthres=[0.00001,0.00001,0.00001],Vtimespan=5,Vthres=25,lastPthres=0.05,lastWinMomentumThres=0.2)
+		ans=rollingWindow_2(
+			tradingPair=pair,
+			data=marketHistoricalData[pair],
+			histTimeInterval=1,
+			warningTimeGap=10,
+			maxLatency=5,
+			checkTS=CHECK_TIME_STAMP_WINDOW,
+			Pthres=PRICE_THRESHOLD_WINDOW,
+			Vtimespan=VOLUME_TEST_WINDOW,
+			Vthres=VOLUME_TEST_QUANTITY,
+			lastPthres=LAST_WINDOW_PRICE_INCREASE_THRESHOLD,
+			lastWinMomentumThres=LAST_WINDOW_MOMENTUM_THRESHOLD
+		)
 		if ans!=None and ans['buySig']!=None:
 			hq.heappush(buyCand,(-ans['buySig'],{'dynamicBalanceFactor':ans['dynamicBalanceFactor'],'pair':pair,'twentyFourHourBTCVolume':ans['twentyFourHourBTCVolume'],'peakPrice':ans['peakPrice'],'buyPrice':ans['buyPrice'],'currPrice':ans['currPrice'],'currentTS':calendar.timegm(datetime.datetime.utcnow().utctimetuple())}))
 	return buyCand
