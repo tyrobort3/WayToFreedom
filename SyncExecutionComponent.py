@@ -87,7 +87,7 @@ def sell(candidate):
 		# Give market some time, up to 10 seconds to do the trading
 		orderFulfilled = waitTradingGracePeriod(pair)
 		
-		if (orderFulfilled is True):
+		if (orderFulfilled is True) or (cancelOutOfDateOrder(orderUUID) is False):
 			# Get order
 			values = {'uuid': orderUUID}
 			contents = bittrex.query('getorder', values)
@@ -106,7 +106,6 @@ def sell(candidate):
 		else:
 			# If the order has been fulfilled, cancel will make nothing
 			# Otherwise cancel this out-of-date order
-			cancelOutOfDateOrder(orderUUID)
 			snsLog('Warning: order canceled because order is not fulfilled for selling ' + pair)
 	else:
 		snsLog('Warning: No quantity available for ' + currency)
@@ -168,7 +167,7 @@ def buy(candidate):
 	# Give market some time, up to 10 seconds to do the trading
 	orderFulfilled = waitTradingGracePeriod(pair)
 	
-	if (orderFulfilled is True):
+	if (orderFulfilled is True) or (cancelOutOfDateOrder(orderUUID) is False):
 		# Get order
 		values = {'uuid': orderUUID}
 		contents = bittrex.query('getorder', values)
@@ -189,7 +188,6 @@ def buy(candidate):
 	else:
 		# If the order has been fulfilled, cancel will make nothing
 		# Otherwise cancel this out-of-date order
-		cancelOutOfDateOrder(orderUUID)
 		snsLog('Warning: order canceled because order is not fulfilled for buying ' + pair)
 		return True
 
@@ -263,34 +261,21 @@ def waitTradingGracePeriod(pair):
 		print(json.dumps(contents))
 	return False
 
-def updateTransactionHistory(pair, quantity, rate, details, buy=True):
-	timeStamp = str(datetime.now())
-	tradingType = str()
-	if (buy is True):
-		tradingType = 'Buy'
-	else:
-		tradingType = 'Sell'
-	
-	transactionHistory.put_item(
-		Item = {
-			'MarketName': pair,
-			'TimeStamp': timeStamp,
-			'TradingType': tradingType,
-			'Quantity': str(quantity),
-			'Rate': str(rate),
-			'TradingDetails': json.dumps((details))
-		}
-	)
-	
-	return
-
+# This function will return False when the order has been fulfilled
+# Return True if canceled
 def cancelOutOfDateOrder(orderUUID):
 	if (orderUUID is not None):
 		values = {'uuid': orderUUID}
 		contents = bittrex.query('cancel', values)
 		print('Cancel order info: ')
 		print(json.dumps(contents))
-	return
+		if (contents['message'] == 'ORDER_NOT_OPEN'):
+			print('The order has been fulfilled but not updated! Will update it now')
+			return False
+		else:
+			return True
+	else:
+		return True
 
 def triggerTradingSNS():
 	sns = boto3.client(service_name="sns")
