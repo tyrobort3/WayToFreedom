@@ -24,4 +24,4 @@ WTFSellingSignalComponent:
 * SellingSignalComponent.py
 * tradingSignalHistoryTable.py
 
-## Todo
+## Apply multiple partitions
