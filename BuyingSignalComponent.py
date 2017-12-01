@@ -26,6 +26,7 @@ VOLUME_TEST_WINDOW = int(os.environ['volume_test_window'])
 VOLUME_TEST_QUANTITY = float(os.environ['volume_test_quantity'])
 LAST_WINDOW_PRICE_INCREASE_THRESHOLD = float(os.environ['last_window_price_increase_threshold'])
 LAST_WINDOW_MOMENTUM_THRESHOLD = float(os.environ['last_window_momentum_threshold'])
+LAST_24_HOURS_BASE_VOLUME = float(os.environ['last_24_hours_base_volume'])
 
 holdingStatusTable = HoldingStatusTable(HOLDINTSTATUSTABLENAME)
 tradingSignalHistoryTable = TradingSignalHistoryTable(TRADINGSIGNALHISTORYTABLENAME)
@@ -43,6 +44,7 @@ def retrieveMarketHistoricalData(rawMarketSummaryData):
 	marketHistoricalData = dict()
 	print('Total number of market is {}'.format(str(len(rawMarketSummaryData['result']))))
 	listOfMarket = getListOfMarket(rawMarketSummaryData)
+	print('Filtered number of market is {}'.format(str(len(listOfMarket))))
 	
 	timeStop = str(datetime.now() - timedelta(hours = HOURINTEREST)).replace(' ', 'T')
 	
@@ -71,7 +73,7 @@ def getListOfMarket(rawMarketSummaryData):
 	listOfMarket = list()
 	for record in rawMarketSummaryData['result']:
 		tradingPair = record['MarketName']
-		if (tradingPair.startswith('BTC')):
+		if (tradingPair.startswith('BTC')) and (float(record['BaseVolume']) > LAST_24_HOURS_BASE_VOLUME):
 			listOfMarket.append(record['MarketName'])
 	
 	return listOfMarket
