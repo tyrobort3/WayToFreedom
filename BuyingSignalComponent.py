@@ -173,7 +173,7 @@ def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLat
 	currPrice,currTS=data[-1]['C'],calendar.timegm(datetime.datetime.strptime(data[-1]['T'],"%Y-%m-%dT%H:%M:%S").timetuple())
 	startTS=calendar.timegm(datetime.datetime.strptime(data[0]['T'],"%Y-%m-%dT%H:%M:%S").timetuple())
 	#read holding position here
-	holdingStatus=getHoldingStatus(tradingPair)
+	holdingStatus=holdingStatusTable.getHoldingStatus(tradingPair)
 	#deprecated, sell and buy are completely seperated
 	sellSignal=None
 
@@ -264,9 +264,6 @@ def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLat
 		print('warning: tradingPair '+str(tradingPair)+' not passing last lastPthres('+str(lastPthres)+')')
 		return {'dynamicBalanceFactor':None,'buySig':None,'sellSig':sellSignal,'twentyFourHourBTCVolume':None,'peakPrice':(holdingStatus['PeakPrice'] if holdingStatus!=None else None),'buyPrice':(holdingStatus['BuyPrice'] if holdingStatus!=None else None),'currPrice':currPrice}
 	return {'dynamicBalanceFactor':BTCVolume/Vthres,'buySig':BTCVolume/Vthres+(prices[-1]-prices[-2])/prices[-2],'sellSig':sellSignal,'twentyFourHourBTCVolume':None,'peakPrice':(holdingStatus['PeakPrice'] if holdingStatus!=None else None),'buyPrice':(holdingStatus['BuyPrice'] if holdingStatus!=None else None),'currPrice':currPrice}
-	
-	#print(BTCVolume/Vthres+(prices[-1]-prices[-2])/prices[-2])
-	#return {'dynamicBalanceFactor':None,'buySig':None,'sellSig':sellSignal,'twentyFourHourBTCVolume':None,'peakPrice':(holdingStatus['PeakPrice'] if holdingStatus!=None else None),'buyPrice':(holdingStatus['BuyPrice'] if holdingStatus!=None else None),'currPrice':currPrice}
 
 
 
