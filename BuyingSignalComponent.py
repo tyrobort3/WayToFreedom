@@ -64,7 +64,6 @@ def retrieveMarketHistoricalData(rawMarketSummaryData):
 			mostRecentData = getMostRecentData(market, startTimeStamp)
 			cutUnfilledData.extend(mostRecentData)
 			marketHistoricalData[market] = cutUnfilledData
-			marketHistoricalData[market] = cutUnfilledData
 		finally:
 			# Need to break before running limit
 			marketLimit = marketLimit - 1
