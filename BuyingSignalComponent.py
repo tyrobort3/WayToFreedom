@@ -88,8 +88,12 @@ def getMostRecentData(market, startTimeStamp):
 		contents = bittrex.query('getmarkethistory', values)['result']
 		
 		# Only need to calculate time later than start time stamp
-		it = next(i for i in xrange(len(contents)) if (startTimeStamp >= contents[i]['TimeStamp']))
-		filteredTransactionData = contents[:it]
+		try:
+			it = next(i for i in xrange(len(contents)) if (startTimeStamp >= contents[i]['TimeStamp']))
+		except:
+			filteredTransactionData = contents
+		else:
+			filteredTransactionData = contents[:it]
 		
 		currentTimeStamp = startTimeStamp
 		O = 0.0
