@@ -141,14 +141,15 @@ def generateBuyCandidates(marketHistoricalData):
 			Vtimespan=VOLUME_TEST_WINDOW,
 			Vthres=VOLUME_TEST_QUANTITY,
 			lastPthres=LAST_WINDOW_PRICE_INCREASE_THRESHOLD,
-			lastWinMomentumThres=LAST_WINDOW_MOMENTUM_THRESHOLD
+			lastWinMomentumThres=LAST_WINDOW_MOMENTUM_THRESHOLD,
+			maxPriceTimeSpan=24*60
 		)
 		if ans!=None and ans['buySig']!=None:
 			hq.heappush(buyCand,(-ans['buySig'],{'dynamicBalanceFactor':ans['dynamicBalanceFactor'],'pair':pair,'twentyFourHourBTCVolume':ans['twentyFourHourBTCVolume'],'peakPrice':ans['peakPrice'],'buyPrice':ans['buyPrice'],'currPrice':ans['currPrice'],'currentTS':calendar.timegm(datetime.datetime.utcnow().utctimetuple())}))
 	return buyCand
 
 #following are designed to parallel run
-def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLatency=5,checkTS=[-45,-30,-15],Pthres=[0.0001,0.0001,0.0001],Vtimespan=45,Vthres=50,lastPthres=0.05,lastWinMomentumThres=0.2):
+def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLatency=5,checkTS=[-45,-30,-15],Pthres=[0.0001,0.0001,0.0001],Vtimespan=45,Vthres=50,lastPthres=0.05,lastWinMomentumThres=0.2,maxPriceTimeSpan=24*60):
 	#-------------------------------
 	#this function is for trading strategy 2
 	#the time units are still min
@@ -170,6 +171,7 @@ def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLat
 	print('latest timeStamp: '+str(tradingPair)+' '+str(data[-1]['T']))
 	#check sell signal before everything else
 	currPrice,currTS=data[-1]['C'],calendar.timegm(datetime.datetime.strptime(data[-1]['T'],"%Y-%m-%dT%H:%M:%S").timetuple())
+	startTS=calendar.timegm(datetime.datetime.strptime(data[0]['T'],"%Y-%m-%dT%H:%M:%S").timetuple())
 	#read holding position here
 	holdingStatus=holdingStatusTable.getHoldingStatus(tradingPair)
 	#deprecated, sell and buy are completely seperated
@@ -177,6 +179,8 @@ def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLat
 
 	if warningTimeGap==None or (not 0<warningTimeGap):
 		raise ValueError('warningTimeGap >0')
+	if maxPriceTimeSpan==None or (not 0<maxPriceTimeSpan):
+		raise ValueError('maxPriceTimeSpan: '+str(maxPriceTimeSpan))
 	if histTimeInterval>=warningTimeGap:
 		raise ValueError('histTimeInterval: '+str(histTimeInterval)+'must be less than warningTimeGap: '+str(warningTimeGap))
 	if maxLatency==None or maxLatency>6:
@@ -192,16 +196,19 @@ def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLat
 	if Vtimespan==None or Vtimespan<=0 or Vthres==None or Vthres<=0:
 		raise ValueError('erroneous Vtimespan('+str(Vtimespan)+') or Vthres('+str(Vthres)+')')
 	Vthres=float(Vthres)
-	if calendar.timegm(datetime.datetime.strptime(data[0]['T'],"%Y-%m-%dT%H:%M:%S").timetuple())-calendar.timegm(datetime.datetime.strptime(data[-1]['T'],"%Y-%m-%dT%H:%M:%S").timetuple())>checkTS[0]*60:
+	if startTS-calendar.timegm(datetime.datetime.strptime(data[-1]['T'],"%Y-%m-%dT%H:%M:%S").timetuple())>checkTS[0]*60:
 		print('history not exceeding desired check timeStamp: '+str(checkTS[0])+' '+str(data[-1]['T'])+' '+str(data[0]['T']))
 		return {'dynamicBalanceFactor':None,'buySig':None,'sellSig':sellSignal,'twentyFourHourBTCVolume':None,'peakPrice':(holdingStatus['PeakPrice'] if holdingStatus!=None else None),'buyPrice':(holdingStatus['BuyPrice'] if holdingStatus!=None else None),'currPrice':currPrice}
 	#initialization
 	prices=[None]*len(checkTS)+[float(data[-1]['C'])]
 	checkTSunix=[currTS+entry*60 for entry in checkTS]
 	checkTSpointer=len(checkTS)-1
-	stopTime=currTS+min(checkTS[0],-1*Vtimespan)*60
-	BTCVolume,vWindow=data[-1]['V']*data[-1]['C'],{'start':currTS-Vtimespan*60,'end':currTS}
+	stopTime=currTS+min(checkTS[0],-1*Vtimespan,-maxPriceTimeSpan)*60
+	if startTS>stopTime:
+		print('warning: trading pair '+str(tradingPair)+' oldest record('+str(data[0]['T'])+') not exceeding stopTime('+str(stopTime)+')')
+	BTCVolume,vWindow=float(data[-1]['BV']),{'start':currTS-Vtimespan*60,'end':currTS}
 	preTs=currTS
+	maxPriceTimeSpan_p=float(data[-1]['C'])
 	lastWindowMax,lastWindowMin=prices[-1],prices[-1]
 	#start loop
 	for i in range(len(data)-2,-1,-1):
@@ -218,6 +225,7 @@ def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLat
 			print(str(data[i]))
 			print('data timestamp overlapping, will skip this trading pair')
 			return {'dynamicBalanceFactor':None,'buySig':None,'sellSig':sellSignal,'twentyFourHourBTCVolume':None,'peakPrice':(holdingStatus['PeakPrice'] if holdingStatus!=None else None),'buyPrice':(holdingStatus['BuyPrice'] if holdingStatus!=None else None),'currPrice':currPrice}
+		maxPriceTimeSpan_p=max(maxPriceTimeSpan_p,cp)
 		if checkTSpointer>=0 and ts<=checkTSunix[checkTSpointer]:
 			if checkTSpointer>0 and ts<=checkTSunix[checkTSpointer-1]:
 				print('time gap between data record for trading pair '+str(tradingPair)+' are too big or checkTS intervals are too frequent')
@@ -241,6 +249,9 @@ def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLat
 		if ts<stopTime:
 			break
 		preTs=ts
+	if float(data[-1]['C'])<maxPriceTimeSpan_p:
+		print('warning: tradingPair '+str(tradingPair)+' not passing maxPriceTimeSpan('+str(maxPriceTimeSpan)+') maxPriceTimeSpan_p('+str(maxPriceTimeSpan_p)+')')
+		return {'dynamicBalanceFactor':None,'buySig':None,'sellSig':sellSignal,'twentyFourHourBTCVolume':None,'peakPrice':(holdingStatus['PeakPrice'] if holdingStatus!=None else None),'buyPrice':(holdingStatus['BuyPrice'] if holdingStatus!=None else None),'currPrice':currPrice}		
 	if (lastWindowMax-prices[-1])>=lastWinMomentumThres*(lastWindowMax-lastWindowMin):
 		print('warning: tradingPair '+str(tradingPair)+' not passing last window momentum threshold('+str(lastWinMomentumThres)+')')
 		print(lastWindowMax,lastWindowMin,prices[-1])
@@ -253,7 +264,9 @@ def rollingWindow_2(tradingPair,data,histTimeInterval=1,warningTimeGap=60,maxLat
 		print('warning: tradingPair '+str(tradingPair)+' not passing last lastPthres('+str(lastPthres)+')')
 		return {'dynamicBalanceFactor':None,'buySig':None,'sellSig':sellSignal,'twentyFourHourBTCVolume':None,'peakPrice':(holdingStatus['PeakPrice'] if holdingStatus!=None else None),'buyPrice':(holdingStatus['BuyPrice'] if holdingStatus!=None else None),'currPrice':currPrice}
 	return {'dynamicBalanceFactor':BTCVolume/Vthres,'buySig':BTCVolume/Vthres+(prices[-1]-prices[-2])/prices[-2],'sellSig':sellSignal,'twentyFourHourBTCVolume':None,'peakPrice':(holdingStatus['PeakPrice'] if holdingStatus!=None else None),'buyPrice':(holdingStatus['BuyPrice'] if holdingStatus!=None else None),'currPrice':currPrice}
-	
+
+
+
 def lambda_handler(event, context):
 	try:
 		# Validate Bittrex connection
