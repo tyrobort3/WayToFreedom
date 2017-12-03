@@ -60,6 +60,10 @@ def retrieveMarketHistoricalData(rawMarketSummaryData):
 			print(market + ": no valid data within last " + str(HOURINTEREST) + " hours")
 		else:
 			cutUnfilledData = unfilledData[it:]
+			startTimeStamp = cutUnfilledData[-1]['T']
+			mostRecentData = getMostRecentData(market, startTimeStamp)
+			cutUnfilledData.extend(mostRecentData)
+			marketHistoricalData[market] = cutUnfilledData
 			marketHistoricalData[market] = cutUnfilledData
 		finally:
 			# Need to break before running limit
@@ -77,6 +81,61 @@ def getListOfMarket(rawMarketSummaryData):
 			listOfMarket.append(record['MarketName'])
 	
 	return listOfMarket
+
+def getMostRecentData(market, startTimeStamp):
+	try:
+		mostRecentData = list()
+		values = {'market': market}
+		contents = bittrex.query('getmarkethistory', values)['result']
+		
+		# Only need to calculate time later than start time stamp
+		it = next(i for i in xrange(len(contents)) if (startTimeStamp >= contents[i]['TimeStamp']))
+		filteredTransactionData = contents[:it]
+		
+		currentTimeStamp = startTimeStamp
+		O = 0.0
+		C = 0.0
+		H = 0.0
+		L = 0.0
+		V = 0.0
+		BV = 0.0
+		
+		for record in reversed(filteredTransactionData):
+			timeStamp = record['TimeStamp'].split('.')[0][:-2]
+			
+			if (currentTimeStamp < timeStamp):
+				# Need write to result for last accumulated result
+				if (currentTimeStamp != startTimeStamp):
+					mostRecentData.append(
+						{
+							'O' : O,
+							'C' : C,
+							'H' : H,
+							'L' : L,
+							'V' : V,
+							'BV' : BV,
+							'T' : currentTimeStamp
+						}
+					)
+					
+				# Start new accumulation
+				currentTimeStamp = timeStamp + '00'
+				O = record['Price']
+				C = record['Price']
+				H = record['Price']
+				L = record['Price']
+				V = record['Quantity']
+				BV = record['Total']
+			else:
+				H = max(H, record['Price'])
+				L = min(L, record['Price'])
+				V += record['Quantity']
+				BV += record['Total']
+	except Exception, e:
+		print('Error: ' + str(e))
+		raise
+	
+	return mostRecentData
 
 def triggerTradingSNS(buyingCandidates):
 	sns = boto3.client(service_name="sns")
