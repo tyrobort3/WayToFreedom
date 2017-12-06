@@ -178,10 +178,9 @@ def sellSig(holdingStatus,currPrice,currTS,thresholds={'stopLoss':-0.07,'stopPea
 	if currTS-calendar.timegm(datetime.datetime.strptime(holdingStatus['CreatedTimeStamp'],"%Y-%m-%d %H:%M:%S.%f").timetuple())<=gracePeriod*60:
 		if (currPrice-holdingStatus['BuyPrice'])<=gracePeriodStopLoss*holdingStatus['BuyPrice']:
 			return {'sig':sys.maxint,'comPrice':(1-abs(gracePeriodStopLoss))*holdingStatus['BuyPrice']}
-		return None
-
-	if (currPrice-holdingStatus['BuyPrice'])<=thresholds['stopLoss']*holdingStatus['BuyPrice']:
-		return {'sig':sys.maxint,'comPrice':(1-abs(thresholds['stopLoss']))*holdingStatus['BuyPrice']}
+	else:
+		if (currPrice-holdingStatus['BuyPrice'])<=thresholds['stopLoss']*holdingStatus['BuyPrice']:
+			return {'sig':sys.maxint,'comPrice':(1-abs(thresholds['stopLoss']))*holdingStatus['BuyPrice']}
 	# if (currPrice-holdingStatus['PeakPrice'])/holdingStatus['PeakPrice']<=thresholds['stopPeakLoss']:
 	# 	return sys.maxint
 	# if (currPrice-holdingStatus['BuyPrice'])/holdingStatus['BuyPrice']>=thresholds['stopGain']:
@@ -203,6 +202,8 @@ def sellSig(holdingStatus,currPrice,currTS,thresholds={'stopLoss':-0.07,'stopPea
 	# 	print('info: LowPurchaseQuantity',holdingStatus,thresholds['LowPurchaseQuantity'])
 	# 	return sys.maxint
 	return None
+
+
 
 def lambda_handler(event, context):
 	try:
