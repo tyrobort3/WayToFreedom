@@ -86,6 +86,9 @@ def getMostRecentData(market, startTimeStamp):
 		mostRecentData = list()
 		values = {'market': market}
 		contents = bittrex.query('getmarkethistory', values)['result']
+
+		if (contents == None):
+			return mostRecentData
 		
 		# Only need to calculate time later than start time stamp
 		try:
