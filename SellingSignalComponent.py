@@ -193,7 +193,10 @@ def sellSig(holdingStatus,currPrice,currTS,thresholds={'stopLoss':-0.07,'stopPea
 		risePct=(holdingStatus['PeakPrice']-holdingStatus['BuyPrice'])/holdingStatus['BuyPrice']
 		for i in range(1,len(peakPriceTrailingIntervals)):
 			if peakPriceTrailingIntervals[i-1]<risePct<=peakPriceTrailingIntervals[i]:
-				comPrice=(1-peakPriceTrailingThreshold[i-1])*holdingStatus['BuyPrice']+peakPriceTrailingThreshold[i-1]*holdingStatus['PeakPrice']
+				if peakPriceTrailingThreshold[i-1]>=0:
+					comPrice=(1-peakPriceTrailingThreshold[i-1])*holdingStatus['BuyPrice']+peakPriceTrailingThreshold[i-1]*holdingStatus['PeakPrice']
+				else:
+					comPrice=(1+peakPriceTrailingThreshold[i-1])*holdingStatus['BuyPrice']
 				if currPrice<=comPrice:
 					print('info: peak price trailing conditions: ',holdingStatus['PeakPrice'],holdingStatus['BuyPrice'],currPrice,peakPriceTrailingIntervals[i-1],peakPriceTrailingIntervals[i],peakPriceTrailingThreshold[i-1],comPrice)
 					return {'sig':sys.maxint,'comPrice':comPrice}
@@ -202,6 +205,7 @@ def sellSig(holdingStatus,currPrice,currTS,thresholds={'stopLoss':-0.07,'stopPea
 	# 	print('info: LowPurchaseQuantity',holdingStatus,thresholds['LowPurchaseQuantity'])
 	# 	return sys.maxint
 	return None
+
 
 
 
