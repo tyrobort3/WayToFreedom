@@ -28,7 +28,6 @@ PEAK_PRICE_TRAILING_THRESHOLD = [float(i) for i in os.environ['peak_price_traili
 PEAK_PRICE_TRAILING_THRESHOLD_GRACE = [float(i) for i in os.environ['peak_price_trailing_threshold_grace'].split(',')]
 GRACE_PERIOD = int(os.environ['grace_period'])
 GRACE_PERIOD_STOP_LOSS = float(os.environ['grace_period_stop_loss'])
-peakPriceTrailingThreshold_grace
 
 holdingStatusTable = HoldingStatusTable(HOLDINTSTATUSTABLENAME)
 tradingSignalHistoryTable = TradingSignalHistoryTable(TRADINGSIGNALHISTORYTABLENAME)
