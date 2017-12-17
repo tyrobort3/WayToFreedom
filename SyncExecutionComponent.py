@@ -94,6 +94,15 @@ def sell(candidate):
 			print('Order information is: ')
 			print(json.dumps(contents))
 			realRate = contents['result']['PricePerUnit']
+
+			# One exception would be sometimes, realRate will not be updated immediately after trading.
+			# And we need to use tick price instead
+			if (realRate is None):
+				values = {'market': pair}
+				contents = bittrex.query('getticker', values)
+				print('Tickker infor is: ')
+				print(json.dumps(contents))
+				realRate = contents['result']['Last']
 			
 			# Update holding status
 			holdingStatusTable.setHoldingStatus(pair, 'False', 0, 0)
@@ -174,6 +183,15 @@ def buy(candidate):
 		print('Order information is: ')
 		print(json.dumps(contents))
 		realRate = contents['result']['PricePerUnit']
+
+		# One exception would be sometimes, realRate will not be updated immediately after trading.
+		# And we need to use tick price instead
+		if (realRate is None):
+			values = {'market': pair}
+			contents = bittrex.query('getticker', values)
+			print('Tickker infor is: ')
+			print(json.dumps(contents))
+			realRate = contents['result']['Last']
 
 		# Update holding status
 		holdingStatusTable.setHoldingStatus(pair, 'True', realRate, realRate)
