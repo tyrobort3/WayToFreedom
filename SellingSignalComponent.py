@@ -25,6 +25,7 @@ LOW_MOVEMENT_CHECK_TIME_GAP = int(os.environ['low_movement_check_time_gap'])
 LOW_PURCHASE_QUANTITY = float(os.environ['low_purchase_quantity'])
 PEAK_PRICE_TRAILING_INTERVALS = [float(i) for i in os.environ['peak_price_trailing_intervals'].split(',')]
 PEAK_PRICE_TRAILING_THRESHOLD = [float(i) for i in os.environ['peak_price_trailing_threshold'].split(',')]
+PEAK_PRICE_TRAILING_THRESHOLD_GRACE = [float(i) for i in os.environ['peak_price_trailing_threshold_grace'].split(',')]
 GRACE_PERIOD = int(os.environ['grace_period'])
 GRACE_PERIOD_STOP_LOSS = float(os.environ['grace_period_stop_loss'])
 
@@ -146,7 +147,7 @@ def generateSellCandidates(marketHistoricalData):
 			peakPriceTrailingThreshold=PEAK_PRICE_TRAILING_THRESHOLD,
 			gracePeriod=GRACE_PERIOD,
 			gracePeriodStopLoss=GRACE_PERIOD_STOP_LOSS,
-			peakPriceTrailingThreshold_grace=[0.5,0.6,0.7]
+			peakPriceTrailingThreshold_grace=PEAK_PRICE_TRAILING_THRESHOLD_GRACE
 		)
 		if ans!=None and ans['sig']!=None:
 			hq.heappush(sellCand,(-ans['sig'],{'comPrice':ans['comPrice'],'pair':pair,'currentTS':calendar.timegm(datetime.datetime.utcnow().utctimetuple())}))
